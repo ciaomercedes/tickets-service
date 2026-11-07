@@ -1,0 +1,105 @@
+{
+  "info": {
+    "name": "Tickets Service - Cloud Native (EFS + S3)",
+    "description": "Pruebas del Sistema de Gestión de Reservas de Eventos con Tickets. Cambia la variable baseUrl por http://TU-IP-ELASTICA:8080",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://TU-IP-ELASTICA:8080" },
+    { "key": "ticketId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "0. Estado del servicio",
+      "request": { "method": "GET", "url": "{{baseUrl}}/" }
+    },
+    {
+      "name": "1. Generar tickets (VENDIDO, 2 unidades)",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "const r = pm.response.json();",
+        "if (Array.isArray(r) && r.length) pm.collectionVariables.set('ticketId', r[0].id);"
+      ], "type": "text/javascript" } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/tickets",
+        "body": { "mode": "raw", "raw": "{\n  \"eventoId\": \"evento123\",\n  \"eventoNombre\": \"Concierto Duoc Rock\",\n  \"fechaEvento\": \"2026-12-10T20:00:00\",\n  \"lugar\": \"Movistar Arena\",\n  \"usuarioId\": \"usuarioX\",\n  \"usuarioNombre\": \"Ana Pérez\",\n  \"usuarioEmail\": \"ana@correo.cl\",\n  \"asiento\": \"A-10\",\n  \"precio\": 25000,\n  \"estado\": \"VENDIDO\",\n  \"cantidad\": 2\n}" }
+      }
+    },
+    {
+      "name": "1b. Generar ticket (RESERVADO, otro usuario)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/tickets",
+        "body": { "mode": "raw", "raw": "{\n  \"eventoId\": \"evento123\",\n  \"eventoNombre\": \"Concierto Duoc Rock\",\n  \"fechaEvento\": \"2026-12-10T20:00:00\",\n  \"lugar\": \"Movistar Arena\",\n  \"usuarioId\": \"usuarioY\",\n  \"usuarioNombre\": \"Luis Soto\",\n  \"usuarioEmail\": \"luis@correo.cl\",\n  \"asiento\": \"B-03\",\n  \"precio\": 25000,\n  \"estado\": \"RESERVADO\"\n}" }
+      }
+    },
+    {
+      "name": "1c. Generar ticket (otro evento)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/tickets",
+        "body": { "mode": "raw", "raw": "{\n  \"eventoId\": \"evento456\",\n  \"eventoNombre\": \"Feria Tecnológica\",\n  \"fechaEvento\": \"2026-12-20T10:00:00\",\n  \"lugar\": \"Duoc UC Sede Maipú\",\n  \"usuarioId\": \"usuarioX\",\n  \"usuarioNombre\": \"Ana Pérez\",\n  \"precio\": 5000,\n  \"estado\": \"VENDIDO\"\n}" }
+      }
+    },
+    {
+      "name": "2. Subir ticket a S3 (manual)",
+      "request": { "method": "POST", "url": "{{baseUrl}}/api/tickets/{{ticketId}}/subir" }
+    },
+    {
+      "name": "2b. Subir pendientes a S3",
+      "request": { "method": "POST", "url": "{{baseUrl}}/api/tickets/subir-pendientes" }
+    },
+    {
+      "name": "2c. Ver archivos en el bucket S3",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/tickets/s3?prefijo=evento123/", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "s3"], "query": [{ "key": "prefijo", "value": "evento123/" }] } }
+    },
+    {
+      "name": "3. Descargar un ticket (PDF) desde S3",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/tickets/{{ticketId}}/descargar" }
+    },
+    {
+      "name": "3b. Descargar tickets por EVENTO (ZIP)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/tickets/descargar?eventoId=evento123", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "descargar"], "query": [{ "key": "eventoId", "value": "evento123" }] } }
+    },
+    {
+      "name": "3c. Descargar tickets por USUARIO (ZIP)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/tickets/descargar?usuarioId=usuarioX", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "descargar"], "query": [{ "key": "usuarioId", "value": "usuarioX" }] } }
+    },
+    {
+      "name": "4. Modificar detalles del ticket",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/tickets/{{ticketId}}",
+        "body": { "mode": "raw", "raw": "{\n  \"asiento\": \"VIP-01\",\n  \"precio\": 40000,\n  \"lugar\": \"Teatro Caupolicán\"\n}" }
+      }
+    },
+    {
+      "name": "5. Eliminar ticket específico",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/tickets/{{ticketId}}" }
+    },
+    {
+      "name": "6. Estadísticas de todos los eventos",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/estadisticas/eventos" }
+    },
+    {
+      "name": "6b. Estadísticas de un evento",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/estadisticas/eventos/evento123" }
+    },
+    {
+      "name": "7. Historial (todos)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/tickets" }
+    },
+    {
+      "name": "7b. Historial filtrado (evento + estado + fechas)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/tickets?eventoId=evento123&estado=VENDIDO&desde=2026-11-01&hasta=2026-12-31", "host": ["{{baseUrl}}"], "path": ["api", "tickets"], "query": [{ "key": "eventoId", "value": "evento123" }, { "key": "estado", "value": "VENDIDO" }, { "key": "desde", "value": "2026-11-01" }, { "key": "hasta", "value": "2026-12-31" }] } }
+    },
+    {
+      "name": "7c. Historial por usuario",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/tickets?usuarioId=usuarioX", "host": ["{{baseUrl}}"], "path": ["api", "tickets"], "query": [{ "key": "usuarioId", "value": "usuarioX" }] } }
+    }
+  ]
+}

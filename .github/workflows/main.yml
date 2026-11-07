@@ -1,0 +1,104 @@
+name: Build, Push y Deploy de tickets-service
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # permite ejecutarlo a mano desde la pestaña Actions
+
+# Configuración:
+#   Secrets  (Settings > Secrets and variables > Actions > Secrets):
+#     DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, EC2_HOST, USER_SERVER, EC2_SSH_KEY,
+#     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+#   Variables (Settings > Secrets and variables > Actions > Variables):
+#     AWS_REGION (us-east-1), S3_BUCKET, DOCKER_IMAGE_NAME (tickets-service)
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Paso 1: Descargar el código del repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Paso 2: Compilar y ejecutar las pruebas (si fallan, no se despliega)
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build y tests con Maven
+        run: mvn -B clean verify
+
+      # Paso 3: Autenticarse en Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Paso 4: Construir la imagen Docker (con tag latest y con el hash del commit)
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:${{ github.sha }} .
+
+      # Paso 5: Publicar la imagen en Docker Hub
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
+      # Paso 6: Preparar la llave SSH para entrar a la EC2
+      - name: Add SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      # Paso 7: Conectarse a la EC2 y desplegar el contenedor con el EFS montado
+      - name: Deploy en EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            # El EFS debe estar montado en /mnt/efs (ver guía). Si no lo está, se detiene el despliegue.
+            if ! mountpoint -q /mnt/efs; then
+              sudo mount -a || true
+            fi
+            mountpoint -q /mnt/efs || { echo "ERROR: el EFS no está montado en /mnt/efs"; exit 1; }
+
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest
+
+            docker stop tickets-service || true
+            docker rm tickets-service || true
+
+            docker run -d --name tickets-service --restart unless-stopped \
+              -p 8080:8080 \
+              -v /mnt/efs:/app/efs \
+              -e S3_BUCKET="${{ vars.S3_BUCKET }}" \
+              -e AWS_REGION="${{ vars.AWS_REGION }}" \
+              -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              -e AWS_SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}" \
+              ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest
+
+            docker image prune -f
+            docker ps --filter name=tickets-service
+          EOF
+
+      # Paso 8: Verificar que la aplicación responde
+      - name: Verificar despliegue
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fs http://${{ secrets.EC2_HOST }}:8080/actuator/health; then
+              echo ""; echo "Aplicación desplegada OK"; exit 0
+            fi
+            echo "Esperando que la aplicación inicie... ($i/20)"; sleep 6
+          done
+          echo "La aplicación no respondió a tiempo"; exit 1

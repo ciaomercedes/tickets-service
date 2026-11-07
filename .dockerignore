@@ -1,0 +1,6 @@
+target/
+efs-local/
+.git/
+.github/
+postman/
+*.md

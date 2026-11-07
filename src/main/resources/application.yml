@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: tickets-service
+  # El historial de tickets se guarda en una base H2 en archivo DENTRO del EFS,
+  # así no se pierde cuando el pipeline reemplaza el contenedor.
+  datasource:
+    url: jdbc:h2:file:${app.efs.path}/db/ticketsdb
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+app:
+  efs:
+    # En Docker se usa /app/efs (montado desde /mnt/efs de la EC2). Localmente, ./efs-local
+    path: ${EFS_PATH:./efs-local}
+  s3:
+    bucket: ${S3_BUCKET:cambia-este-nombre-de-bucket}
+    region: ${AWS_REGION:us-east-1}
+    # true = al generar un ticket se sube automáticamente a S3
+    auto-upload: ${S3_AUTO_UPLOAD:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
