@@ -1,11 +1,11 @@
 {
   "info": {
     "name": "Tickets Service - Cloud Native (EFS + S3)",
-    "description": "Pruebas del Sistema de Gestión de Reservas de Eventos con Tickets. Cambia la variable baseUrl por http://TU-IP-ELASTICA:8080",
+    "description": "Pruebas del Sistema de Gestión de Reservas de Eventos con Tickets. La variable baseUrl apunta a la IP elástica de la EC2 (puerto 8080)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://TU-IP-ELASTICA:8080" },
+    { "key": "baseUrl", "value": "http://184.194.156.106:8080" },
     { "key": "ticketId", "value": "1" }
   ],
   "item": [
