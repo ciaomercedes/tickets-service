@@ -76,3 +76,5 @@ mvn spring-boot:run
 ```
 
 Sin credenciales AWS los tickets quedan en `./efs-local` con `subidoS3: false`. Los tests (`mvn verify`) simulan S3 en memoria.
+
+Despliegue demostrado en video - 07-11-2026
